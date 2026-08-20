@@ -248,6 +248,25 @@ def count_waiting_patients():
 
 
 # ==========================================
+# CLEAR ALL PATIENTS
+# ==========================================
+
+def clear_all_patients():
+    """
+    Remove all patient records while keeping
+    the patients table intact.
+    """
+
+    connection = connect_db()
+    cursor = connection.cursor()
+
+    cursor.execute("DELETE FROM patients")
+
+    connection.commit()
+    connection.close()
+
+
+# ==========================================
 # INITIALIZE DATABASE
 # ==========================================
 

@@ -11,17 +11,20 @@ import database
 def generate_token():
     """Generate the next available patient token."""
 
-    patients = database.get_waiting_patients()
+    patients = database.get_all_patients()
 
     numbers = []
 
     for patient in patients:
+
         token = patient[5]
 
         if token and token.startswith("A"):
+
             try:
                 number = int(token[1:])
                 numbers.append(number)
+
             except ValueError:
                 pass
 
@@ -37,7 +40,13 @@ def generate_token():
 # REGISTER PATIENT
 # ==========================================
 
-def add_patient(name, age, phone, department, priority="Normal"):
+def add_patient(
+    name,
+    age,
+    phone,
+    department,
+    priority="Normal"
+):
     """Register a new patient in the hospital queue."""
 
     token = generate_token()
@@ -81,7 +90,10 @@ def get_position(token):
 
     patients = database.get_waiting_patients()
 
-    for position, patient in enumerate(patients, start=1):
+    for position, patient in enumerate(
+        patients,
+        start=1
+    ):
 
         if patient[5] == token:
             return position
@@ -101,8 +113,6 @@ def get_waiting_time(token):
     if position is None:
         return None
 
-    # Assume 5 minutes per patient
-
     return (position - 1) * 5
 
 
@@ -118,19 +128,27 @@ def call_next_patient():
     if not patients:
         return None
 
-    # database.py already sorts:
     # Emergency → Elderly → Normal
+    next_patient = patients[0]
 
-    patient = patients[0]
+    patient_id = next_patient[0]
 
-    patient_id = patient[0]
+    # Check if another patient is currently serving
+    current_patient = database.get_serving_patient()
+
+    if current_patient:
+
+        database.update_patient_status(
+            current_patient[0],
+            "Completed"
+        )
 
     database.update_patient_status(
         patient_id,
         "Serving"
     )
 
-    return patient
+    return next_patient
 
 
 # ==========================================
@@ -156,7 +174,7 @@ def complete_patient(token):
 
 
 # ==========================================
-# GET PATIENT
+# GET PATIENT BY TOKEN
 # ==========================================
 
 def get_patient(token):
@@ -188,10 +206,14 @@ def display_queue():
     print("------------------------------------------")
 
     if not patients:
+
         print("No patients waiting.")
         return
 
-    for position, patient in enumerate(patients, start=1):
+    for position, patient in enumerate(
+        patients,
+        start=1
+    ):
 
         name = patient[1]
         department = patient[4]
@@ -208,78 +230,3 @@ def display_queue():
             f"Position: {position} | "
             f"Wait: {waiting_time} minutes"
         )
-
-
-# ==========================================
-# TEST PROGRAM
-# ==========================================
-
-if __name__ == "__main__":
-
-    print()
-    print("==========================================")
-    print("       DIGITAL HOSPITAL QUEUE")
-    print("==========================================")
-
-    print("\nRegistering test patients...")
-
-    patient1 = add_patient(
-        "Rahul",
-        25,
-        "9876543210",
-        "General",
-        "Normal"
-    )
-
-    patient2 = add_patient(
-        "Ananya",
-        30,
-        "9876501234",
-        "Dental",
-        "Normal"
-    )
-
-    patient3 = add_patient(
-        "Arjun",
-        65,
-        "9876512345",
-        "General",
-        "Emergency"
-    )
-
-    print(
-        f"\nRegistered: "
-        f"{patient1['token']} - {patient1['name']}"
-    )
-
-    print(
-        f"Registered: "
-        f"{patient2['token']} - {patient2['name']}"
-    )
-
-    print(
-        f"Registered: "
-        f"{patient3['token']} - {patient3['name']}"
-    )
-
-    display_queue()
-
-    print("\nCalling next patient...")
-    print("------------------------------------------")
-
-    next_patient = call_next_patient()
-
-    if next_patient:
-
-        print(
-            f"Now serving: "
-            f"{next_patient[5]} - "
-            f"{next_patient[1]} | "
-            f"Priority: {next_patient[6]}"
-        )
-
-    else:
-
-        print("No patients waiting.")
-
-    print("\nBackend test completed successfully.")

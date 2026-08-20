@@ -1,10 +1,10 @@
 import streamlit as st
-import database
+import main
 
 
-# ============================================================
+# ==========================================
 # PAGE CONFIGURATION
-# ============================================================
+# ==========================================
 
 st.set_page_config(
     page_title="Digital Hospital Queue",
@@ -13,246 +13,89 @@ st.set_page_config(
 )
 
 
-# ============================================================
-# DATABASE SETUP
-# ============================================================
-
-database.create_table()
-
-
-# ============================================================
-# HELPER FUNCTIONS
-# ============================================================
-
-def format_token(token):
-    """
-    Converts:
-        1    -> A001
-        2    -> A002
-        A001 -> A001
-
-    This keeps the app compatible with the existing database.
-    """
-
-    if token is None:
-        return "N/A"
-
-    token = str(token).strip()
-
-    if token.upper().startswith("A"):
-        return token.upper()
-
-    try:
-        return f"A{int(token):03d}"
-    except ValueError:
-        return token
-
-
-def get_all_patients():
-    """Get all patients from the database."""
-
-    connection = database.connect_db()
-    cursor = connection.cursor()
-
-    cursor.execute("""
-        SELECT
-            id,
-            name,
-            age,
-            phone,
-            department,
-            token,
-            priority,
-            status,
-            created_at
-        FROM patients
-        ORDER BY id ASC
-    """)
-
-    patients = cursor.fetchall()
-
-    connection.close()
-
-    return patients
-
-
-def get_current_patient():
-    """Get the patient currently being served."""
-
-    connection = database.connect_db()
-    cursor = connection.cursor()
-
-    cursor.execute("""
-        SELECT
-            id,
-            name,
-            age,
-            phone,
-            department,
-            token,
-            priority,
-            status,
-            created_at
-        FROM patients
-        WHERE status = 'Serving'
-        ORDER BY id ASC
-        LIMIT 1
-    """)
-
-    patient = cursor.fetchone()
-
-    connection.close()
-
-    return patient
-
-
-def get_waiting_patients():
-    """
-    Get waiting patients and arrange them by priority.
-
-    Emergency -> first
-    Senior Citizen / Elderly -> second
-    Normal -> last
-    """
-
-    patients = database.get_waiting_patients()
-
-    priority_order = {
-        "Emergency": 0,
-        "Senior Citizen": 1,
-        "Elderly": 1,
-        "Normal": 2
-    }
-
-    patients.sort(
-        key=lambda patient: (
-            priority_order.get(patient[6], 2),
-            str(patient[5])
-        )
-    )
-
-    return patients
-
-
-def get_next_token_number():
-    """Find the next available token number."""
-
-    patients = get_all_patients()
-
-    highest_number = 0
-
-    for patient in patients:
-
-        token = patient[5]
-
-        if token is None:
-            continue
-
-        token = str(token).strip()
-
-        if token.upper().startswith("A"):
-            token = token[1:]
-
-        try:
-            number = int(token)
-
-            if number > highest_number:
-                highest_number = number
-
-        except ValueError:
-            continue
-
-    return highest_number + 1
-
-
-def register_patient(
-    name,
-    age,
-    phone,
-    department,
-    priority
-):
-    """Register a new patient."""
-
-    token_number = get_next_token_number()
-
-    database.add_patient(
-        name,
-        age,
-        phone,
-        department,
-        token_number,
-        priority
-    )
-
-    return token_number
-
-
-def call_next_patient():
-    """Call the next patient in the queue."""
-
-    waiting_patients = get_waiting_patients()
-
-    if not waiting_patients:
-        return None
-
-    current_patient = get_current_patient()
-
-    # Complete the current patient first
-    if current_patient is not None:
-        database.update_patient_status(
-            current_patient[0],
-            "Completed"
-        )
-
-    # Call the next patient
-    next_patient = waiting_patients[0]
-
-    database.update_patient_status(
-        next_patient[0],
-        "Serving"
-    )
-
-    return next_patient
-
-
-def complete_current_patient():
-    """Complete the currently serving patient."""
-
-    current_patient = get_current_patient()
-
-    if current_patient is None:
-        return False
-
-    database.update_patient_status(
-        current_patient[0],
-        "Completed"
-    )
-
-    return True
-
-
-# ============================================================
+# ==========================================
+# CUSTOM CSS
+# ==========================================
+
+st.markdown("""
+<style>
+
+.main {
+    padding-top: 1rem;
+}
+
+.hospital-header {
+    text-align: center;
+    padding: 25px;
+    border-radius: 15px;
+    margin-bottom: 25px;
+    background: linear-gradient(135deg, #0f766e, #14b8a6);
+    color: white;
+}
+
+.hospital-header h1 {
+    font-size: 40px;
+    margin-bottom: 5px;
+}
+
+.hospital-header p {
+    font-size: 18px;
+    margin: 0;
+}
+
+.queue-card {
+    padding: 25px;
+    border-radius: 15px;
+    background-color: #f0fdfa;
+    border: 1px solid #99f6e4;
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.token {
+    font-size: 55px;
+    font-weight: bold;
+    color: #0f766e;
+}
+
+.stat-card {
+    padding: 20px;
+    border-radius: 12px;
+    background-color: #f8fafc;
+    border: 1px solid #e2e8f0;
+    text-align: center;
+}
+
+.footer {
+    text-align: center;
+    color: #64748b;
+    padding: 30px;
+}
+
+</style>
+""", unsafe_allow_html=True)
+
+
+# ==========================================
 # HEADER
-# ============================================================
+# ==========================================
 
-st.title("🏥 Digital Hospital Queue")
+st.markdown("""
+<div class="hospital-header">
+    <h1>🏥 Digital Hospital Queue</h1>
+    <p>Smart • Simple • Stress-Free Hospital Visits</p>
+</div>
+""", unsafe_allow_html=True)
 
-st.caption(
-    "Smart • Simple • Stress-Free Hospital Visits"
-)
 
-st.divider()
-
-
-# ============================================================
+# ==========================================
 # SIDEBAR
-# ============================================================
+# ==========================================
 
 st.sidebar.title("🏥 Hospital Menu")
 
 page = st.sidebar.radio(
-    "Choose an option:",
+    "Choose an option",
     [
         "Patient Registration",
         "Queue Status",
@@ -261,9 +104,9 @@ page = st.sidebar.radio(
 )
 
 
-# ============================================================
+# ==========================================
 # PATIENT REGISTRATION
-# ============================================================
+# ==========================================
 
 if page == "Patient Registration":
 
@@ -273,7 +116,7 @@ if page == "Patient Registration":
         "Register your visit and receive a digital queue token."
     )
 
-    with st.form("patient_registration_form"):
+    with st.form("patient_form"):
 
         name = st.text_input(
             "Patient Name",
@@ -284,8 +127,7 @@ if page == "Patient Registration":
             "Age",
             min_value=1,
             max_value=120,
-            value=25,
-            step=1
+            value=25
         )
 
         phone = st.text_input(
@@ -310,7 +152,7 @@ if page == "Patient Registration":
             "Patient Priority",
             [
                 "Normal",
-                "Senior Citizen",
+                "Elderly",
                 "Emergency"
             ]
         )
@@ -324,27 +166,17 @@ if page == "Patient Registration":
 
         if not name.strip():
 
-            st.error(
-                "Please enter the patient name."
-            )
+            st.error("Please enter the patient name.")
 
         elif not phone.strip():
 
-            st.error(
-                "Please enter the phone number."
-            )
-
-        elif len(phone.strip()) < 10:
-
-            st.error(
-                "Please enter a valid phone number."
-            )
+            st.error("Please enter the phone number.")
 
         else:
 
             try:
 
-                token_number = register_patient(
+                patient = main.add_patient(
                     name.strip(),
                     int(age),
                     phone.strip(),
@@ -352,245 +184,183 @@ if page == "Patient Registration":
                     priority
                 )
 
-                token = format_token(token_number)
+                st.success("Registration successful!")
 
-                st.success(
-                    "Registration successful!"
+                st.markdown(
+                    f"""
+                    <div class="queue-card">
+                        <h3>Your Queue Token</h3>
+
+                        <div class="token">
+                            {patient["token"]}
+                        </div>
+
+                        <p>
+                            <b>Patient:</b>
+                            {patient["name"]}
+                        </p>
+
+                        <p>
+                            <b>Department:</b>
+                            {patient["department"]}
+                        </p>
+
+                        <p>
+                            <b>Priority:</b>
+                            {patient["priority"]}
+                        </p>
+
+                        <p>
+                            Please wait for your token to be called.
+                        </p>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
                 )
 
-                st.subheader("🎫 Your Queue Token")
+                position = main.get_position(
+                    patient["token"]
+                )
 
-                st.title(token)
-
-                col1, col2, col3 = st.columns(3)
-
-                with col1:
-                    st.metric(
-                        "Patient",
-                        name
-                    )
-
-                with col2:
-                    st.metric(
-                        "Department",
-                        department
-                    )
-
-                with col3:
-                    st.metric(
-                        "Priority",
-                        priority
-                    )
-
-                waiting_patients = get_waiting_patients()
-
-                position = None
-
-                for index, patient in enumerate(
-                    waiting_patients,
-                    start=1
-                ):
-
-                    if str(patient[5]) == str(token_number):
-                        position = index
-                        break
+                wait_time = main.get_waiting_time(
+                    patient["token"]
+                )
 
                 if position is not None:
-
-                    wait_time = (position - 1) * 5
 
                     col1, col2 = st.columns(2)
 
                     with col1:
+
                         st.metric(
                             "Queue Position",
                             position
                         )
 
                     with col2:
+
                         st.metric(
                             "Estimated Wait",
-                            f"{wait_time} minutes"
+                            f"{wait_time} min"
                         )
-
-                st.info(
-                    "Please wait for your token to be called."
-                )
 
             except Exception as error:
 
                 st.error(
-                    "Registration failed."
+                    "Unable to register patient."
                 )
 
-                st.write(
-                    "Please check the terminal for details."
-                )
-
-                print(error)
+                st.code(str(error))
 
 
-# ============================================================
+# ==========================================
 # QUEUE STATUS
-# ============================================================
+# ==========================================
 
 elif page == "Queue Status":
 
     st.header("📋 Live Queue Status")
 
-    waiting_patients = get_waiting_patients()
-
-    current_patient = get_current_patient()
-
-    # --------------------------------------------------------
-    # STATISTICS
-    # --------------------------------------------------------
-
-    if current_patient:
-
-        current_token = format_token(
-            current_patient[5]
-        )
-
-    else:
-
-        current_token = "None"
-
-    estimated_wait = len(waiting_patients) * 5
+    patients = main.get_queue()
 
     col1, col2, col3 = st.columns(3)
 
+    # Waiting patients
     with col1:
 
-        st.metric(
-            "👥 Waiting Patients",
-            len(waiting_patients)
+        st.markdown(
+            f"""
+            <div class="stat-card">
+                <h3>👥 Waiting Patients</h3>
+                <h2>{len(patients)}</h2>
+            </div>
+            """,
+            unsafe_allow_html=True
         )
 
+    # Currently serving
     with col2:
 
-        st.metric(
-            "🔔 Now Serving",
-            current_token
+        current = main.get_current_patient()
+
+        if current:
+            current_token = current[5]
+        else:
+            current_token = "None"
+
+        st.markdown(
+            f"""
+            <div class="stat-card">
+                <h3>🔔 Now Serving</h3>
+                <h2>{current_token}</h2>
+            </div>
+            """,
+            unsafe_allow_html=True
         )
 
+    # Estimated wait
     with col3:
 
-        st.metric(
-            "⏱️ Estimated Wait",
-            f"{estimated_wait} min"
+        estimated_time = len(patients) * 5
+
+        st.markdown(
+            f"""
+            <div class="stat-card">
+                <h3>⏱️ Estimated Wait</h3>
+                <h2>{estimated_time} min</h2>
+            </div>
+            """,
+            unsafe_allow_html=True
         )
 
     st.divider()
 
-    # --------------------------------------------------------
-    # CURRENT PATIENT
-    # --------------------------------------------------------
+    # Waiting patients
+    if patients:
 
-    if current_patient:
+        st.subheader("Patients Currently Waiting")
 
-        st.subheader("🔔 Currently Being Served")
+        for position, patient in enumerate(
+            patients,
+            start=1
+        ):
 
-        col1, col2, col3, col4 = st.columns(4)
+            token = patient[5]
+            name = patient[1]
+            department = patient[4]
+            priority = patient[6]
 
-        with col1:
-            st.write("**Token**")
-            st.write(
-                format_token(current_patient[5])
+            if priority == "Emergency":
+                priority_icon = "🔴"
+
+            elif priority == "Elderly":
+                priority_icon = "🟡"
+
+            else:
+                priority_icon = "🟢"
+
+            wait_time = (position - 1) * 5
+
+            st.info(
+                f"{priority_icon} "
+                f"**{token}** — "
+                f"{name} — "
+                f"{department} — "
+                f"{priority} — "
+                f"Position: {position} — "
+                f"Wait: {wait_time} min"
             )
 
-        with col2:
-            st.write("**Name**")
-            st.write(current_patient[1])
-
-        with col3:
-            st.write("**Department**")
-            st.write(current_patient[4])
-
-        with col4:
-            st.write("**Priority**")
-            st.write(current_patient[6])
-
-        st.divider()
-
-    # --------------------------------------------------------
-    # WAITING PATIENTS
-    # --------------------------------------------------------
-
-    st.subheader("👥 Patients Currently Waiting")
-
-    if not waiting_patients:
+    else:
 
         st.success(
             "🎉 No patients are currently waiting!"
         )
 
-    else:
 
-        for position, patient in enumerate(
-            waiting_patients,
-            start=1
-        ):
-
-            token = format_token(patient[5])
-
-            name = patient[1]
-
-            department = patient[4]
-
-            priority = patient[6]
-
-            wait_time = (position - 1) * 5
-
-            if priority == "Emergency":
-
-                icon = "🔴"
-
-            elif priority in [
-                "Senior Citizen",
-                "Elderly"
-            ]:
-
-                icon = "🟡"
-
-            else:
-
-                icon = "🟢"
-
-            with st.container(border=True):
-
-                st.write(
-                    f"{icon} **{token} — {name}**"
-                )
-
-                col1, col2, col3 = st.columns(3)
-
-                with col1:
-
-                    st.write(
-                        f"Department: **{department}**"
-                    )
-
-                with col2:
-
-                    st.write(
-                        f"Priority: **{priority}**"
-                    )
-
-                with col3:
-
-                    st.write(
-                        f"Position: **{position}**"
-                    )
-
-                st.caption(
-                    f"Estimated wait: {wait_time} minutes"
-                )
-
-
-# ============================================================
+# ==========================================
 # DOCTOR DASHBOARD
-# ============================================================
+# ==========================================
 
 elif page == "Doctor Dashboard":
 
@@ -598,88 +368,73 @@ elif page == "Doctor Dashboard":
         "👨‍⚕️ Doctor / Receptionist Dashboard"
     )
 
-    # --------------------------------------------------------
+    current = main.get_current_patient()
+
+    # ======================================
     # CURRENT PATIENT
-    # --------------------------------------------------------
+    # ======================================
 
     st.subheader("🔔 Current Patient")
 
-    current_patient = get_current_patient()
+    if current:
 
-    if current_patient:
+        name = current[1]
+        age = current[2]
+        department = current[4]
+        token = current[5]
+        priority = current[6]
 
-        token = format_token(
-            current_patient[5]
+        st.markdown(
+            f"""
+            <div class="queue-card">
+
+                <h3>Now Serving</h3>
+
+                <div class="token">
+                    {token}
+                </div>
+
+                <p>
+                    <b>Name:</b> {name}
+                </p>
+
+                <p>
+                    <b>Age:</b> {age}
+                </p>
+
+                <p>
+                    <b>Department:</b> {department}
+                </p>
+
+                <p>
+                    <b>Priority:</b> {priority}
+                </p>
+
+            </div>
+            """,
+            unsafe_allow_html=True
         )
-
-        name = current_patient[1]
-
-        age = current_patient[2]
-
-        department = current_patient[4]
-
-        priority = current_patient[6]
-
-        st.success(
-            f"Now Serving: {token}"
-        )
-
-        col1, col2 = st.columns(2)
-
-        with col1:
-
-            st.write("### Patient Details")
-
-            st.write(
-                f"**Token:** {token}"
-            )
-
-            st.write(
-                f"**Name:** {name}"
-            )
-
-            st.write(
-                f"**Age:** {age}"
-            )
-
-        with col2:
-
-            st.write("### Visit Details")
-
-            st.write(
-                f"**Department:** {department}"
-            )
-
-            st.write(
-                f"**Priority:** {priority}"
-            )
-
-            st.write(
-                "**Status:** Serving"
-            )
 
         if st.button(
             "✅ Complete Current Patient",
             use_container_width=True
         ):
 
-            try:
+            success = main.complete_patient(token)
 
-                complete_current_patient()
+            if success:
 
                 st.success(
-                    f"{token} - {name} has been completed."
+                    f"{token} - {name} completed."
                 )
 
                 st.rerun()
 
-            except Exception as error:
+            else:
 
                 st.error(
-                    "Could not complete the patient."
+                    "Unable to complete patient."
                 )
-
-                print(error)
 
     else:
 
@@ -689,9 +444,9 @@ elif page == "Doctor Dashboard":
 
     st.divider()
 
-    # --------------------------------------------------------
+    # ======================================
     # CALL NEXT PATIENT
-    # --------------------------------------------------------
+    # ======================================
 
     st.subheader("📢 Queue Management")
 
@@ -700,122 +455,169 @@ elif page == "Doctor Dashboard":
         use_container_width=True
     ):
 
-        try:
+        next_patient = main.call_next_patient()
 
-            next_patient = call_next_patient()
+        if next_patient:
 
-            if next_patient is None:
-
-                st.warning(
-                    "There are no patients waiting."
-                )
-
-            else:
-
-                next_token = format_token(
-                    next_patient[5]
-                )
-
-                next_name = next_patient[1]
-
-                st.success(
-                    f"Now serving {next_token} — {next_name}"
-                )
-
-                st.rerun()
-
-        except Exception as error:
-
-            st.error(
-                "Could not call the next patient."
+            st.success(
+                f"Now serving "
+                f"{next_patient[5]} - "
+                f"{next_patient[1]}"
             )
 
-            print(error)
+            st.rerun()
+
+        else:
+
+            st.warning(
+                "There are no patients waiting."
+            )
+
+    # ======================================
+    # CURRENT QUEUE
+    # ======================================
 
     st.divider()
 
-    # --------------------------------------------------------
-    # WAITING QUEUE
-    # --------------------------------------------------------
+    st.subheader("📋 Current Waiting Queue")
 
-    st.subheader("📊 Current Queue")
+    patients = main.get_queue()
 
-    waiting_patients = get_waiting_patients()
+    if patients:
 
-    if not waiting_patients:
+        for position, patient in enumerate(
+            patients,
+            start=1
+        ):
+
+            token = patient[5]
+            name = patient[1]
+            department = patient[4]
+            priority = patient[6]
+
+            if priority == "Emergency":
+                icon = "🔴"
+
+            elif priority == "Elderly":
+                icon = "🟡"
+
+            else:
+                icon = "🟢"
+
+            st.write(
+                f"{icon} "
+                f"**{token}** | "
+                f"{name} | "
+                f"{department} | "
+                f"{priority} | "
+                f"Position: {position}"
+            )
+
+    else:
 
         st.info(
             "No patients are currently waiting."
         )
 
-    else:
+    # ======================================
+    # PATIENT HISTORY
+    # ======================================
 
-        for position, patient in enumerate(
-            waiting_patients,
-            start=1
-        ):
+    st.divider()
 
-            token = format_token(patient[5])
+    st.subheader("📊 Patient History")
 
+    all_patients = main.database.get_all_patients()
+
+    if all_patients:
+
+        for patient in all_patients:
+
+            patient_id = patient[0]
             name = patient[1]
-
+            age = patient[2]
+            phone = patient[3]
             department = patient[4]
-
+            token = patient[5]
             priority = patient[6]
+            status = patient[7]
+            created_at = patient[8]
 
-            wait_time = (position - 1) * 5
-
-            if priority == "Emergency":
-
-                icon = "🔴"
-
-            elif priority in [
-                "Senior Citizen",
-                "Elderly"
-            ]:
-
+            if status == "Waiting":
                 icon = "🟡"
 
-            else:
+            elif status == "Serving":
+                icon = "🔵"
 
+            elif status == "Completed":
                 icon = "🟢"
 
-            with st.container(border=True):
+            else:
+                icon = "⚪"
 
-                st.write(
-                    f"{icon} **{token} — {name}**"
-                )
+            with st.expander(
+                f"{icon} {token} — {name} — {status}"
+            ):
 
-                col1, col2, col3, col4 = st.columns(4)
+                col1, col2 = st.columns(2)
 
                 with col1:
+
                     st.write(
-                        f"Position: **{position}**"
+                        f"**Patient ID:** {patient_id}"
+                    )
+
+                    st.write(
+                        f"**Name:** {name}"
+                    )
+
+                    st.write(
+                        f"**Age:** {age}"
+                    )
+
+                    st.write(
+                        f"**Phone:** {phone}"
                     )
 
                 with col2:
+
                     st.write(
-                        f"Department: **{department}**"
+                        f"**Department:** {department}"
                     )
 
-                with col3:
                     st.write(
-                        f"Priority: **{priority}**"
+                        f"**Token:** {token}"
                     )
 
-                with col4:
                     st.write(
-                        f"Wait: **{wait_time} min**"
+                        f"**Priority:** {priority}"
                     )
 
+                    st.write(
+                        f"**Status:** {status}"
+                    )
 
-# ============================================================
+                st.write(
+                    f"**Registered At:** {created_at}"
+                )
+
+    else:
+
+        st.info(
+            "No patient history available."
+        )
+
+
+# ==========================================
 # FOOTER
-# ============================================================
+# ==========================================
 
-st.divider()
-
-st.caption(
-    "🏥 Digital Hospital Queue System | "
-    "Reducing waiting time • Improving patient experience"
+st.markdown(
+    """
+    <div class="footer">
+        🏥 Digital Hospital Queue System<br>
+        Reducing waiting time • Improving patient experience
+    </div>
+    """,
+    unsafe_allow_html=True
 )
